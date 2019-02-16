@@ -66,7 +66,7 @@ class SimpleCifar10CNN(nn.Module):
         return out
 
 
-@click.group(name="train_cnn")
+@click.command()
 @click.help_option("-h", "--help")
 @click.option(
     "--batch-size", default=64, show_default=True, help="the image batch size", type=int
@@ -99,8 +99,8 @@ def train(batch_size, lr, epochs, keep_prob, output):
         "./cifar10_data", transform=transforms.ToTensor(), download=True, train=True
     )
     train_loader = torch.utils.data.DataLoader(cifar10, batch_size=64, shuffle=True)
-    optimizer = torch.optim.Adadelta(lr=lr)
     model = SimpleCifar10CNN(keep_prob=keep_prob)
+    optimizer = torch.optim.Adadelta(model.parameters(), lr=lr)
     cross_loss = nn.CrossEntropyLoss()
     for epoch in range(1, epochs + 1):
         for i, (img_batch, label_batch) in enumerate(train_loader, 1):
