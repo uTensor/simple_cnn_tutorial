@@ -117,7 +117,7 @@ def train(batch_size, lr, epochs, keep_prob, output, ckpt_file):
         "./cifar10_data", transform=transforms.ToTensor(), train=False, download=True
     )
     train_loader = torch.utils.data.DataLoader(
-        cifar10_train, batch_size=64, shuffle=True
+        cifar10_train, batch_size=batch_size, shuffle=True
     )
     eval_loader = torch.utils.data.DataLoader(
         cifar10_test, batch_size=len(cifar10_test), shuffle=False
@@ -129,8 +129,8 @@ def train(batch_size, lr, epochs, keep_prob, output, ckpt_file):
             model.load_state_dict(state)
             click.echo("{} loaded".format(ckpt_file))
     cross_loss = nn.CrossEntropyLoss()
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     for epoch in range(1, epochs + 1):
-        optimizer = torch.optim.Adam(model.parameters(), lr=lr)
         for i, (img_batch, label_batch) in enumerate(train_loader, 1):
             logits = model(img_batch)
             optimizer.zero_grad()
