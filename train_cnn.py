@@ -69,7 +69,7 @@ class SimpleCifar10CNN(nn.Module):
 @click.command()
 @click.help_option("-h", "--help")
 @click.option(
-    "--batch-size", default=64, show_default=True, help="the image batch size", type=int
+    "--batch-size", default=50, show_default=True, help="the image batch size", type=int
 )
 @click.option(
     "--lr",
@@ -94,13 +94,43 @@ class SimpleCifar10CNN(nn.Module):
     default="cifar10_cnn.ckpt",
     show_default=True,
 )
-def train(batch_size, lr, epochs, keep_prob, output):
-    cifar10 = cifar.CIFAR10(
-        "./cifar10_data", transform=transforms.ToTensor(), download=True, train=True
+@click.option("--ckpt-file", default=None, show_default=True)
+def train(batch_size, lr, epochs, keep_prob, output, ckpt_file):
+    click.echo(
+        click.style(
+            "lr: {}, keep_prob: {}, output: {}".format(lr, keep_prob, output),
+            fg="cyan",
+            bold=True,
+        )
     )
-    train_loader = torch.utils.data.DataLoader(cifar10, batch_size=64, shuffle=True)
+    trans = transforms.Compose(
+        [
+            transforms.RandomHorizontalFlip(),
+            transforms.RandomAffine(degrees=0, translate=(0.1, 0.1)),
+            transforms.ToTensor(),
+        ]
+    )
+    cifar10_train = cifar.CIFAR10(
+        "./cifar10_data", transform=trans, download=True, train=True
+    )
+    cifar10_test = cifar.CIFAR10(
+        "./cifar10_data", transform=transforms.ToTensor(), train=False, download=True
+    )
+    train_loader = torch.utils.data.DataLoader(
+        cifar10_train, batch_size=64, shuffle=True
+    )
+    eval_loader = torch.utils.data.DataLoader(
+        cifar10_test, batch_size=len(cifar10_test), shuffle=False
+    )
     model = SimpleCifar10CNN(keep_prob=keep_prob)
-    optimizer = torch.optim.Adadelta(model.parameters(), lr=lr)
+    if ckpt_file is not None:
+        with open(ckpt_file, "rb") as fid:
+            state = torch.load(fid)
+            model.load_state_dict(state)
+            click.echo("{} loaded".format(ckpt_file))
+    optimizer = torch.optim.Adam(
+        model.parameters(), lr=lr
+    )  # Adadelta(model.parameters(), lr=lr, eps=1e-7, rho=0.95)
     cross_loss = nn.CrossEntropyLoss()
     for epoch in range(1, epochs + 1):
         for i, (img_batch, label_batch) in enumerate(train_loader, 1):
@@ -119,6 +149,24 @@ def train(batch_size, lr, epochs, keep_prob, output):
                         bold=True,
                     )
                 )
+                model.eval()
+                img_batch, label_batch = next(iter(eval_loader))
+                logits = model(img_batch)
+                _, pred_label = torch.max(logits, 1)
+                # fmt: off
+                accuracy = (
+                    (label_batch == pred_label).sum().item() /
+                    label_batch.shape[0]
+                )
+                # fmt: on
+                click.echo(
+                    click.style(
+                        "eval acc: {:0.2f}%".format(accuracy * 100),
+                        fg="green",
+                        bold=True,
+                    )
+                )
+                model.train()
     click.echo(click.style("saving model to {}".format(output), fg="white", bold=True))
     torch.save(model.state_dict(), output)
 
