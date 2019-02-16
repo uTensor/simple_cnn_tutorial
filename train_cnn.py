@@ -128,9 +128,9 @@ def train(batch_size, lr, epochs, keep_prob, output, ckpt_file):
             state = torch.load(fid)
             model.load_state_dict(state)
             click.echo("{} loaded".format(ckpt_file))
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     cross_loss = nn.CrossEntropyLoss()
     for epoch in range(1, epochs + 1):
+        optimizer = torch.optim.Adam(model.parameters(), lr=lr)
         for i, (img_batch, label_batch) in enumerate(train_loader, 1):
             logits = model(img_batch)
             optimizer.zero_grad()
