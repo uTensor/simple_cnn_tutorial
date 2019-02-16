@@ -7,7 +7,7 @@ name = "pypi"
 mbed-cli = "*"
 utensor-cgen = "*"
 torch = "*"
-torch-vision = "*"
+torch-vision = "0.2.1"
 pillow = "*"
 click = "*"
 
