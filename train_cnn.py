@@ -73,7 +73,7 @@ class SimpleCifar10CNN(nn.Module):
 )
 @click.option(
     "--lr",
-    default=1.0,
+    default=0.001,
     show_default=True,
     help="the learning rate of the optimizer",
     type=float,
@@ -128,9 +128,7 @@ def train(batch_size, lr, epochs, keep_prob, output, ckpt_file):
             state = torch.load(fid)
             model.load_state_dict(state)
             click.echo("{} loaded".format(ckpt_file))
-    optimizer = torch.optim.Adam(
-        model.parameters(), lr=lr
-    )  # Adadelta(model.parameters(), lr=lr, eps=1e-7, rho=0.95)
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     cross_loss = nn.CrossEntropyLoss()
     for epoch in range(1, epochs + 1):
         for i, (img_batch, label_batch) in enumerate(train_loader, 1):
