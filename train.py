@@ -1,69 +1,29 @@
 # -*- coding: utf8 -*-
-from collections import OrderedDict
+import math
 
 import click
 
 import torch
+from model import SimpleCifar10CNN
 from torch import nn
-from torch.onnx import export
 from torchvision import transforms
 from torchvision.datasets import cifar
 
 
-class SimpleCifar10CNN(nn.Module):
-    def __init__(self, keep_prob=0.9):
-        super(SimpleCifar10CNN, self).__init__()
-        self.layer1 = nn.Sequential(
-            OrderedDict(
-                [
-                    ("conv1", nn.Conv2d(3, 16, 2)),
-                    ("conv2", nn.Conv2d(16, 32, 3)),
-                    ("relu1", nn.ReLU()),
-                    ("pool1", nn.MaxPool2d(2, stride=2)),
-                ]
-            )
-        )
-        self.layer2 = nn.Sequential(
-            OrderedDict(
-                [
-                    ("conv3", nn.Conv2d(32, 32, 3, stride=2)),
-                    ("conv4", nn.Conv2d(32, 32, 3, stride=2)),
-                    ("relu2", nn.ReLU()),
-                    ("drop1", nn.Dropout(p=keep_prob)),
-                    ("pool2", nn.MaxPool2d(2, stride=2)),
-                ]
-            )
-        )
-        self.layer3 = nn.Sequential(
-            OrderedDict(
-                [
-                    ("conv5", nn.Conv2d(32, 64, 1)),
-                    ("relu3", nn.ReLU()),
-                    ("conv6", nn.Conv2d(64, 128, 1)),
-                    ("relu4", nn.ReLU()),
-                ]
-            )
-        )
-        self.fc = nn.Sequential(
-            OrderedDict(
-                [
-                    ("fc1", nn.Linear(128, 128)),
-                    ("relu5", nn.ReLU()),
-                    ("drop2", nn.Dropout(p=keep_prob)),
-                    ("fc2", nn.Linear(128, 64)),
-                    ("relu6", nn.ReLU()),
-                    ("fc3", nn.Linear(64, 10)),
-                ]
-            )
-        )
-
-    def forward(self, img_batch):
-        out = self.layer1(img_batch)
-        out = self.layer2(out)
-        out = self.layer3(out)
-        out = out.view(-1, 128)
-        out = self.fc(out)
-        return out
+def _xavier_init(m):
+    if isinstance(m, nn.Conv2d):
+        nn.init.xavier_uniform_(m.weight, gain=math.sqrt(3))
+        fan_in = fan_out = m.bias.shape[0]
+        m.bias.data = nn.init.xavier_uniform_(
+            torch.empty((fan_in, fan_out)), gain=math.sqrt(3)
+        )[0]
+    elif isinstance(m, nn.Linear):
+        nn.init.xavier_normal_(m.weight, gain=1 / 0.87962566103423978)
+        if m.bias:
+            fan_in = fan_out = m.bias.shape[0]
+            m.bias.data = nn.init.xavier_normal_(
+                torch.empty((fan_in, fan_out)), gain=1 / 0.87962566103423978
+            )[0]
 
 
 @click.command()
@@ -73,7 +33,7 @@ class SimpleCifar10CNN(nn.Module):
 )
 @click.option(
     "--lr",
-    default=0.001,
+    default=0.9,
     show_default=True,
     help="the learning rate of the optimizer",
     type=float,
@@ -103,38 +63,49 @@ def train(batch_size, lr, epochs, keep_prob, output, ckpt_file):
             bold=True,
         )
     )
-    trans = transforms.Compose(
+    trans_train = transforms.Compose(
         [
+            # transforms.RandomCrop(32, padding=4),
             transforms.RandomHorizontalFlip(),
             transforms.RandomAffine(degrees=0, translate=(0.1, 0.1)),
             transforms.ToTensor(),
+            # transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+        ]
+    )
+    trans_test = transforms.Compose(
+        [
+            transforms.ToTensor(),
+            # transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
         ]
     )
     cifar10_train = cifar.CIFAR10(
-        "./cifar10_data", transform=trans, download=True, train=True
+        "./cifar10_data", transform=trans_train, download=True, train=True
     )
     cifar10_test = cifar.CIFAR10(
-        "./cifar10_data", transform=transforms.ToTensor(), train=False, download=True
+        "./cifar10_data", transform=trans_test, download=True, train=False
     )
     train_loader = torch.utils.data.DataLoader(
-        cifar10_train, batch_size=batch_size, shuffle=True
+        cifar10_train, batch_size=batch_size, shuffle=True, num_workers=2
     )
     eval_loader = torch.utils.data.DataLoader(
-        cifar10_test, batch_size=len(cifar10_test), shuffle=False
+        cifar10_test, batch_size=len(cifar10_test), shuffle=False, num_workers=2
     )
     model = SimpleCifar10CNN(keep_prob=keep_prob)
+    model.apply(_xavier_init)
     if ckpt_file is not None:
         with open(ckpt_file, "rb") as fid:
             state = torch.load(fid)
             model.load_state_dict(state)
             click.echo("{} loaded".format(ckpt_file))
     cross_loss = nn.CrossEntropyLoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    device = torch.cuda.is_available() and "gpu" or "cpu"
+    optimizer = torch.optim.Adadelta(model.parameters(), lr=lr, rho=0.95, eps=1e-7)
     for epoch in range(1, epochs + 1):
         for i, (img_batch, label_batch) in enumerate(train_loader, 1):
+            img_batch, label_batch = img_batch.to(device), label_batch.to(device)
             logits = model(img_batch)
-            optimizer.zero_grad()
             loss = cross_loss(logits, label_batch)
+            optimizer.zero_grad()
             loss.backward()
             optimizer.step()
             if (i % 100) == 0:
@@ -147,6 +118,7 @@ def train(batch_size, lr, epochs, keep_prob, output, ckpt_file):
                         bold=True,
                     )
                 )
+            if (i % 500) == 0:
                 model.eval()
                 img_batch, label_batch = next(iter(eval_loader))
                 logits = model(img_batch)
