@@ -1,3 +1,4 @@
+#!/bin/env python3
 # -*- coding: utf8 -*-
 import math
 
@@ -100,6 +101,7 @@ def train(batch_size, lr, epochs, keep_prob, output, ckpt_file):
     cross_loss = nn.CrossEntropyLoss()
     device = torch.cuda.is_available() and "gpu" or "cpu"
     optimizer = torch.optim.Adadelta(model.parameters(), lr=lr, rho=0.95, eps=1e-7)
+    best_acc, best_state = 0, None
     for epoch in range(1, epochs + 1):
         for i, (img_batch, label_batch) in enumerate(train_loader, 1):
             img_batch, label_batch = img_batch.to(device), label_batch.to(device)
@@ -136,9 +138,20 @@ def train(batch_size, lr, epochs, keep_prob, output, ckpt_file):
                         bold=True,
                     )
                 )
+                if accuracy >= best_acc:
+                    best_acc = accuracy
+                    best_state = model.state_dict()
                 model.train()
-    click.echo(click.style("saving model to {}".format(output), fg="white", bold=True))
-    torch.save(model.state_dict(), output)
+    click.echo(
+        click.style(
+            "saving best model to {} (best acc: {:0.2f})".format(
+                output, best_acc * 100
+            ),
+            fg="white",
+            bold=True,
+        )
+    )
+    torch.save(best_state, output)
 
 
 if __name__ == "__main__":
