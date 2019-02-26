@@ -1,6 +1,9 @@
-from functools import reduce
+import sys
 
 import tensorflow as tf
+
+if sys.version_info.major > 2:
+    from functools import reduce
 
 
 def get_conv_filter(
@@ -117,6 +120,6 @@ def build_graph(tf_image_batch, tf_labels, tf_keep_prob, lr=1.0):
         train_op = tf.train.AdadeltaOptimizer(learning_rate=lr, epsilon=1e-7).minimize(
             total_loss
         )
-        saver = tf.train.Saver(max_to_keep=30)
+        saver = tf.train.Saver(max_to_keep=5)
 
         return tf_pred, train_op, total_loss, saver

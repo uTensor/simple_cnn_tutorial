@@ -134,7 +134,9 @@ def train(batch_size, lr, epochs, keep_prob, chkp_dir, output_pb):
                         chkp_cnt += 1
                         click.echo(
                             click.style(
-                                "[epoch {}: {}] saving checkpoint, {}".format(epoch, i, chkp_cnt),
+                                "[epoch {}: {}] saving checkpoint, {} with acc {:0.2f}%".format(
+                                    epoch, i, chkp_cnt, best_acc * 100
+                                ),
                                 fg="white",
                                 bold=True,
                             )
@@ -143,8 +145,10 @@ def train(batch_size, lr, epochs, keep_prob, chkp_dir, output_pb):
     best_graph_def = prepare_meta_graph(
         "{}.meta".format(best_chkp), output_nodes=[tf_pred.op.name]
     )
+
     with open(output_pb, "wb") as fid:
         fid.write(best_graph_def.SerializeToString())
+        click.echo(click.style("{} saved".format(output_pb), fg="blue", bold=True))
 
 
 if __name__ == "__main__":
