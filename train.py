@@ -3,28 +3,19 @@
 import math
 
 import click
+import numpy as np
+import tensorflow as tf
 
 import torch
-from model import SimpleCifar10CNN
+from model import build_graph
 from torch import nn
 from torchvision import transforms
 from torchvision.datasets import cifar
+from utensor_cgen.utils import prepare_meta_graph
 
 
-def _xavier_init(m):
-    if isinstance(m, nn.Conv2d):
-        nn.init.xavier_uniform_(m.weight, gain=math.sqrt(3))
-        fan_in = fan_out = m.bias.shape[0]
-        m.bias.data = nn.init.xavier_uniform_(
-            torch.empty((fan_in, fan_out)), gain=math.sqrt(3)
-        )[0]
-    elif isinstance(m, nn.Linear):
-        nn.init.xavier_normal_(m.weight, gain=1 / 0.87962566103423978)
-        if m.bias:
-            fan_in = fan_out = m.bias.shape[0]
-            m.bias.data = nn.init.xavier_normal_(
-                torch.empty((fan_in, fan_out)), gain=1 / 0.87962566103423978
-            )[0]
+def one_hot(labels, n_class=10):
+    return np.eye(10)[labels]
 
 
 @click.command()
@@ -50,16 +41,21 @@ def _xavier_init(m):
     type=float,
 )
 @click.option(
-    "--output",
+    "--chkp-dir",
+    default="chkp/cifar_cnn",
+    show_default=True,
+    help="directory where to save check point files",
+)
+@click.option(
+    "--output-pb",
     help="output model file name",
-    default="cifar10_cnn.ckpt",
+    default="cifar10_cnn.pb",
     show_default=True,
 )
-@click.option("--ckpt-file", default=None, show_default=True)
-def train(batch_size, lr, epochs, keep_prob, output, ckpt_file):
+def train(batch_size, lr, epochs, keep_prob, chkp_dir, output_pb):
     click.echo(
         click.style(
-            "lr: {}, keep_prob: {}, output: {}".format(lr, keep_prob, output),
+            "lr: {}, keep_prob: {}, output pbfile: {}".format(lr, keep_prob, output_pb),
             fg="cyan",
             bold=True,
         )
@@ -70,13 +66,13 @@ def train(batch_size, lr, epochs, keep_prob, output, ckpt_file):
             transforms.RandomHorizontalFlip(),
             transforms.RandomAffine(degrees=0, translate=(0.1, 0.1)),
             transforms.ToTensor(),
-            # transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
         ]
     )
     trans_test = transforms.Compose(
         [
             transforms.ToTensor(),
-            # transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
         ]
     )
     cifar10_train = cifar.CIFAR10(
@@ -91,67 +87,64 @@ def train(batch_size, lr, epochs, keep_prob, output, ckpt_file):
     eval_loader = torch.utils.data.DataLoader(
         cifar10_test, batch_size=len(cifar10_test), shuffle=False, num_workers=2
     )
-    model = SimpleCifar10CNN(keep_prob=keep_prob)
-    model.apply(_xavier_init)
-    if ckpt_file is not None:
-        with open(ckpt_file, "rb") as fid:
-            state = torch.load(fid)
-            model.load_state_dict(state)
-            click.echo("{} loaded".format(ckpt_file))
-    cross_loss = nn.CrossEntropyLoss()
-    device = torch.cuda.is_available() and "gpu" or "cpu"
-    optimizer = torch.optim.Adadelta(model.parameters(), lr=lr, rho=0.95, eps=1e-7)
-    best_acc, best_state = 0, None
-    for epoch in range(1, epochs + 1):
-        for i, (img_batch, label_batch) in enumerate(train_loader, 1):
-            img_batch, label_batch = img_batch.to(device), label_batch.to(device)
-            logits = model(img_batch)
-            loss = cross_loss(logits, label_batch)
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-            if (i % 100) == 0:
-                click.echo(
-                    click.style(
-                        "[{}/{}: {}] train loss: {:0.4f}".format(
-                            epoch, epochs, i, loss.item()
-                        ),
-                        fg="yellow",
-                        bold=True,
-                    )
-                )
-            if (i % 500) == 0:
-                model.eval()
-                img_batch, label_batch = next(iter(eval_loader))
-                logits = model(img_batch)
-                _, pred_label = torch.max(logits, 1)
-                # fmt: off
-                accuracy = (
-                    (label_batch == pred_label).sum().item() /
-                    label_batch.shape[0]
-                )
-                # fmt: on
-                click.echo(
-                    click.style(
-                        "eval acc: {:0.2f}%".format(accuracy * 100),
-                        fg="green",
-                        bold=True,
-                    )
-                )
-                if accuracy >= best_acc:
-                    best_acc = accuracy
-                    best_state = model.state_dict()
-                model.train()
-    click.echo(
-        click.style(
-            "saving best model to {} (best acc: {:0.2f})".format(
-                output, best_acc * 100
-            ),
-            fg="white",
-            bold=True,
+    graph = tf.Graph()
+    with graph.as_default():
+        tf_image_batch = tf.placeholder(tf.float32, shape=[None, 32, 32, 3])
+        tf_labels = tf.placeholder(tf.float32, shape=[None, 10])
+        tf_keep_prob = tf.placeholder(tf.float32, name="keep_prob")
+        tf_pred, train_op, tf_total_loss, saver = build_graph(
+            tf_image_batch, tf_labels, tf_keep_prob, lr=lr
         )
+    best_acc = 0.0
+    chkp_cnt = 0
+    with tf.Session(graph=graph) as sess:
+        tf.global_variables_initializer().run()
+        for epoch in range(1, epochs + 1):
+            for i, (img_batch, label_batch) in enumerate(train_loader, 1):
+                np_img_batch = img_batch.numpy().transpose((0, 2, 3, 1))
+                np_label_batch = label_batch.numpy()
+                _ = sess.run(
+                    train_op,
+                    feed_dict={
+                        tf_image_batch: np_img_batch,
+                        tf_labels: one_hot(np_label_batch),
+                        tf_keep_prob: keep_prob,
+                    },
+                )
+                if (i % 100) == 0:
+                    img_batch, label_batch = next(iter(eval_loader))
+                    np_img_batch = img_batch.numpy().transpose((0, 2, 3, 1))
+                    np_label_batch = label_batch.numpy()
+                    pred_label = sess.run(
+                        tf_pred,
+                        feed_dict={tf_image_batch: np_img_batch, tf_keep_prob: 1.0},
+                    )
+                    acc = (pred_label == np_label_batch).sum() / np_label_batch.shape[0]
+                    click.echo(
+                        click.style(
+                            "[epoch {}: {}], accuracy {:0.2f}%".format(
+                                epoch, i, acc * 100
+                            ),
+                            fg="yellow",
+                            bold=True,
+                        )
+                    )
+                    if acc >= best_acc:
+                        best_acc = acc
+                        chkp_cnt += 1
+                        click.echo(
+                            click.style(
+                                "[epoch {}: {}] saving checkpoint, {}".format(epoch, i, chkp_cnt),
+                                fg="white",
+                                bold=True,
+                            )
+                        )
+                        best_chkp = saver.save(sess, chkp_dir, global_step=chkp_cnt)
+    best_graph_def = prepare_meta_graph(
+        "{}.meta".format(best_chkp), output_nodes=[tf_pred.op.name]
     )
-    torch.save(best_state, output)
+    with open(output_pb, "wb") as fid:
+        fid.write(best_graph_def.SerializeToString())
 
 
 if __name__ == "__main__":
