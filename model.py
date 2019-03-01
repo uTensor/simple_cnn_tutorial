@@ -101,7 +101,7 @@ def build_graph(tf_image_batch, tf_labels, tf_keep_prob, lr=1.0):
         conv4 = conv_layer(
             conv3, [3, 3, 32, 32], padding="VALID", stride=2, act_fun=tf.nn.relu
         )
-        drop1 = tf.nn.dropout(conv4, keep_prob=tf_keep_prob)
+        drop1 = tf.nn.dropout(conv4, rate=1 - tf_keep_prob)
         pool2 = tf.nn.max_pool(
             drop1, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding="VALID"
         )
@@ -111,7 +111,7 @@ def build_graph(tf_image_batch, tf_labels, tf_keep_prob, lr=1.0):
             conv6, shape=[-1, reduce(lambda x, y: x * y, conv6.shape.as_list()[1:], 1)]
         )
         fc1 = fc_layer(flat_conv6, 128, act_fun=tf.nn.relu)
-        drop_2 = tf.nn.dropout(fc1, keep_prob=tf_keep_prob)
+        drop_2 = tf.nn.dropout(fc1, rate=1 - tf_keep_prob)
         fc2 = fc_layer(drop_2, 64, act_fun=tf.nn.relu)
         logits = fc_layer(fc2, 10)
         tf_pred = tf.argmax(logits, axis=-1, name="pred")
