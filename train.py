@@ -5,13 +5,13 @@ import math
 import click
 import numpy as np
 import tensorflow as tf
-
 import torch
-from model import build_graph
 from torch import nn
 from torchvision import transforms
 from torchvision.datasets import cifar
 from utensor_cgen.utils import prepare_meta_graph
+
+from model import build_graph
 
 
 def one_hot(labels, n_class=10):
@@ -60,26 +60,29 @@ def train(batch_size, lr, epochs, keep_prob, chkp_dir, output_pb):
             bold=True,
         )
     )
-    trans_train = transforms.Compose(
+    cifar10_train = cifar.CIFAR10("./cifar10_data", download=True, train=True)
+    cifar10_test = cifar.CIFAR10("./cifar10_data", download=True, train=False)
+    mean = (
+        (cifar10_train.train_data.astype("float32") / 255.0)
+        .mean(axis=(0, 1, 2))
+        .tolist()
+    )
+    std = (
+        (cifar10_train.train_data.astype("float32") / 255.0)
+        .std(axis=(1, 2))
+        .mean(axis=0)
+        .tolist()
+    )
+    cifar10_train.transform = transforms.Compose(
         [
-            # transforms.RandomCrop(32, padding=4),
             transforms.RandomHorizontalFlip(),
             transforms.RandomAffine(degrees=0, translate=(0.1, 0.1)),
             transforms.ToTensor(),
-            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+            transforms.Normalize(mean, std),
         ]
     )
-    trans_test = transforms.Compose(
-        [
-            transforms.ToTensor(),
-            transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
-        ]
-    )
-    cifar10_train = cifar.CIFAR10(
-        "./cifar10_data", transform=trans_train, download=True, train=True
-    )
-    cifar10_test = cifar.CIFAR10(
-        "./cifar10_data", transform=trans_test, download=True, train=False
+    cifar10_test.transform = transforms.Compose(
+        [transforms.ToTensor(), transforms.Normalize(mean, std)]
     )
     train_loader = torch.utils.data.DataLoader(
         cifar10_train, batch_size=batch_size, shuffle=True, num_workers=2
