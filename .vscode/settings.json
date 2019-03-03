@@ -1,5 +1,8 @@
 {
     // "python.venvPath": "${workspaceFolder}/.venv",
     "python.pythonPath": "${workspaceFolder}/.venv/bin/python",
-    "python.formatting.provider": "black"
+    "python.formatting.provider": "black",
+    "files.associations": {
+        "string": "cpp"
+    }
 }

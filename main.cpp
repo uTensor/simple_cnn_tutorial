@@ -7,17 +7,29 @@
 
 using namespace std;
 
+Serial pc(USBTX, USBRX, 115200);
+
 int main(int argc, char *argv[])
 {
+    printf("Simple CNN with uTensor!\n");
     Context ctx;
-    Tensor *in_tensor = new WrappedRamTensor<float>({32, 32, 3}, (float *)img_data);
+    printf("creating input tensor\n");
+    Tensor *in_tensor = new WrappedRamTensor<float>({1, 32, 32, 3}, (float *)img_data);
     get_cifar10_cnn_ctx(ctx, in_tensor);
-    S_TENSOR pred = ctx.get("pred:0");
+    printf("successfully build graph\n");
+    S_TENSOR logits = ctx.get("fully_connect_2/logits:0");
+    printf("evaluate prediction\n");
     ctx.eval();
-    int pred_label = *(pred->read<int>(0, 0));
-    printf("\n");
-    printf("pred label: %i, expecting %i\n",
-           pred_label,
-           label_true);
+    float max_value = *(logits->read<float>(0, 0));
+    uint32_t pred_label = 0;
+    for (uint32_t i = 0; i < logits->getSize(); ++i)
+    {
+        float value = *(logits->read<float>(0, 0) + i);
+        if (value > max_value)
+        {
+            pred_label = i;
+        }
+    }
+    printf("pred label: %lu, expecting %i\n", pred_label, label_true);
     return 0;
 }

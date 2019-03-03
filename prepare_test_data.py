@@ -3,6 +3,7 @@ from random import random
 
 import click
 import idx2numpy
+
 import torch
 from torchvision import transforms
 from torchvision.datasets import cifar
@@ -27,12 +28,17 @@ def prepare_test_data(target_label):
                         '#define __IMG_DATA_H\n'
                     )
                     fid.write('static const int label_true = {};\n'.format(target_label))
-                    fid.write(
-                        'static const float img_data[{}] = {};\n'.format(
-                            len(norm_data.ravel()),
-                            str(norm_data.ravel().tolist()).replace('[', '{\n').replace(']', '\n}')
-                        )
-                    ) 
+                    fid.write('static const float img_data[{}] = {{\n'.format(len(norm_data.ravel())))
+                    buff = []
+                    for e in norm_data.ravel():
+                        if len(buff) < 5:
+                            buff.append('{:0.6f}'.format(e))
+                        else:
+                            fid.write('    {},\n'.format(', '.join(buff)))
+                            buff = []
+                    if buff:
+                        fid.write('    {},\n'.format(', '.join(buff)))
+                    fid.write('};\n')
                     fid.write('#endif // __IMG_DATA_H\n')
                     done = True
                     break
