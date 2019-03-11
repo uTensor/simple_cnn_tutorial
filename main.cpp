@@ -35,10 +35,7 @@ int main(int argc, char *argv[])
         S_TENSOR logits = ctx.get("fully_connect_2/logits");
         ctx.eval();
         size_t pred_label = argmax(logits);
-        printf("\n");
-        printf("pred label: %lu, expecting %lu\n",
-               pred_label,
-               label);
+        printf("pred label: %lu, expecting %lu\n", pred_label, label);
     }
     return 0;
 }
