@@ -5,17 +5,17 @@ import math
 import click
 import numpy as np
 import tensorflow as tf
+
 import torch
+from model import build_graph
 from torch import nn
 from torchvision import transforms
 from torchvision.datasets import cifar
 from utensor_cgen.utils import prepare_meta_graph
 
-from model import build_graph
-
 
 def one_hot(labels, n_class=10):
-    return np.eye(10)[labels]
+    return np.eye(n_class)[labels]
 
 
 @click.command()
