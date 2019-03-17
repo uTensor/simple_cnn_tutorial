@@ -2,15 +2,17 @@
 #include "uTensor/util/uTensor_util.hpp"
 #include "img_data.h"
 #include <stdio.h>
+#ifndef __ON_PC
 #include <mbed.h>
+#endif
 
 static size_t argmax(S_TENSOR logits)
 {
-    float max_logit = logits->read<float>(0, 0);
+    float max_logit = *(logits->read<float>(0, 0));
     size_t max_label = 0;
     for (size_t i = 0; i < logits->getSize(); ++i)
     {
-        float logit = logits->read<float>(0, i);
+        float logit = *(logits->read<float>(0, i));
         if (logit > max_logit)
         {
             max_label = i;
@@ -20,7 +22,9 @@ static size_t argmax(S_TENSOR logits)
     return max_label;
 }
 
+#ifndef __ON_PC
 Serial pc(USBTX, USBRX, 115200);
+#endif
 
 int main(int argc, char *argv[])
 {
@@ -29,7 +33,7 @@ int main(int argc, char *argv[])
     for (size_t label = 0; label < num_imgs; ++label)
     {
         Context ctx;
-        float *data = images_data[label];
+        float *data = &(imgs_data[label][0]);
         Tensor *in_tensor = new WrappedRamTensor<float>({32, 32, 3}, data);
         get_cifar10_cnn_ctx(ctx, in_tensor);
         S_TENSOR logits = ctx.get("fully_connect_2/logits");
