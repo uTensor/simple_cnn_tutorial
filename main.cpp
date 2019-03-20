@@ -12,7 +12,7 @@ static size_t argmax(S_TENSOR logits)
     size_t max_label = 0;
     for (size_t i = 0; i < logits->getSize(); ++i)
     {
-        float logit = *(logits->read<float>(0, i));
+        float logit = *(logits->read<float>(i, 0));
         if (logit > max_logit)
         {
             max_label = i;
@@ -34,9 +34,9 @@ int main(int argc, char *argv[])
     {
         Context ctx;
         float *data = &(imgs_data[label][0]);
-        Tensor *in_tensor = new WrappedRamTensor<float>({32, 32, 3}, data);
+        Tensor *in_tensor = new WrappedRamTensor<float>({1, 32, 32, 3}, data);
         get_cifar10_cnn_ctx(ctx, in_tensor);
-        S_TENSOR logits = ctx.get("fully_connect_2/logits");
+        S_TENSOR logits = ctx.get("fully_connect_2/logits:0");
         ctx.eval();
         size_t pred_label = argmax(logits);
         printf("pred label: %lu, expecting %lu\n", pred_label, label);
