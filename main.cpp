@@ -30,6 +30,7 @@ int main(int argc, char *argv[])
 {
     size_t num_imgs = sizeof(imgs_data) / sizeof(imgs_data[0]);
     printf("number of images: %lu\n", num_imgs);
+    float acc = 0;
     for (size_t label = 0; label < num_imgs; ++label)
     {
         Context ctx;
@@ -40,6 +41,11 @@ int main(int argc, char *argv[])
         ctx.eval();
         size_t pred_label = argmax(logits);
         printf("pred label: %lu, expecting %lu\n", pred_label, label);
+        if (pred_label == label)
+        {
+            acc += 1.0 / num_imgs;
+        }
     }
+    printf("accuracy: %0.2f%%\n", acc * 100);
     return 0;
 }
