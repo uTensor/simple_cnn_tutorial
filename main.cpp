@@ -40,11 +40,13 @@ int main(int argc, char *argv[])
         S_TENSOR logits = ctx.get("fully_connect_2/logits:0");
         ctx.eval();
         size_t pred_label = argmax(logits);
-        printf("pred label: %lu, expecting %lu\n", pred_label, label);
+        bool is_correct = false;
         if (pred_label == label)
         {
             acc += 1.0 / num_imgs;
+            is_correct = true;
         }
+        printf("pred label: %lu, expecting %lu%s\n", pred_label, label, is_correct ? "" : " (miss)");
     }
     printf("accuracy: %0.2f%%\n", acc * 100);
     return 0;
