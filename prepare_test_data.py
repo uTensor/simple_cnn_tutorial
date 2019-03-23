@@ -51,6 +51,7 @@ def prepare_test_data(accept_prob, labels):
             fid.write("    },\n")
         fid.write("};\n")
         fid.write("#endif // __IMG_DATA_H\n")
+    click.secho("img_data.h generated", fg='yellow', bold=True)
 
 
 if __name__ == "__main__":
