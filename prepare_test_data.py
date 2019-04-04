@@ -1,4 +1,3 @@
-import os
 from random import random
 
 import click
@@ -7,8 +6,8 @@ from torchvision.datasets import cifar
 
 def _random_sample(accept_prob):
     cifar10_train = cifar.CIFAR10("./cifar10_data", download=True, train=False)
-    img_data = cifar10_train.test_data
-    labels = cifar10_train.test_labels
+    img_data = cifar10_train.data
+    labels = cifar10_train.targets
     mean = (img_data.astype("float32") / 255.0).mean(axis=(0, 1, 2))
     std = (img_data.astype("float32") / 255.0).std(axis=(1, 2)).mean(axis=0)
     label_data_map = {}
