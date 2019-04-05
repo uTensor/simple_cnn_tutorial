@@ -1,21 +1,15 @@
-# Environment Setup
+# An End-to-End Tutorial Running CNN on MCU with uTensor
 
-## `pipenv`
+## Setup
 
-```
-pipenv install --skip-lock
-```
+1. `python2.7 -m virtualenv .venv`
+2. `source .venv/bin/activate`
+3. `pip install mbed-cli && mbed deploy`
+4. `pip install utensor_cgen==0.3.3.dev2`
 
-## `pip`
+## Compilation
 
-```
-pipenv run pip install -r requirements.txt
-```
+1. attach your board to the computer
+2. run `make compile`
 
-# Training
-
-```
-pipenv run python train.py
-```
-
-You can run `pipenv run python train.py --help` to see all available options
+For the detailed guide, please refer to this [post](https://medium.com/@dboyliao/simple-cnn-on-mcu-with-utensor-372265ecc5b4)
