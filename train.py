@@ -5,12 +5,12 @@ import math
 import click
 import numpy as np
 import tensorflow as tf
-
 import torch
-from model import build_graph
 from torch import nn
 from torchvision import transforms
 from torchvision.datasets import cifar
+
+from model import build_graph
 from utensor_cgen.utils import prepare_meta_graph
 
 
@@ -34,10 +34,10 @@ def one_hot(labels, n_class=10):
     "--epochs", default=10, show_default=True, help="the number of epochs", type=int
 )
 @click.option(
-    "--keep-prob",
-    default=0.9,
+    "--rate",
+    default=0.1,
     show_default=True,
-    help="the dropout layer keep probability",
+    help="the dropout layer drop rate",
     type=float,
 )
 @click.option(
@@ -52,10 +52,10 @@ def one_hot(labels, n_class=10):
     default="cifar10_cnn.pb",
     show_default=True,
 )
-def train(batch_size, lr, epochs, keep_prob, chkp_dir, output_pb):
+def train(batch_size, lr, epochs, rate, chkp_dir, output_pb):
     click.echo(
         click.style(
-            "lr: {}, keep_prob: {}, output pbfile: {}".format(lr, keep_prob, output_pb),
+            "lr: {}, rate: {}, output pbfile: {}".format(lr, rate, output_pb),
             fg="cyan",
             bold=True,
         )
@@ -94,9 +94,9 @@ def train(batch_size, lr, epochs, keep_prob, chkp_dir, output_pb):
     with graph.as_default():
         tf_image_batch = tf.placeholder(tf.float32, shape=[None, 32, 32, 3])
         tf_labels = tf.placeholder(tf.float32, shape=[None, 10])
-        tf_keep_prob = tf.placeholder(tf.float32, name="keep_prob")
+        tf_rate = tf.placeholder(tf.float32, name="rate")
         tf_pred, train_op, tf_total_loss, saver = build_graph(
-            tf_image_batch, tf_labels, tf_keep_prob, lr=lr
+            tf_image_batch, tf_labels, tf_rate, lr=lr
         )
     best_acc = 0.0
     chkp_cnt = 0
@@ -111,7 +111,7 @@ def train(batch_size, lr, epochs, keep_prob, chkp_dir, output_pb):
                     feed_dict={
                         tf_image_batch: np_img_batch,
                         tf_labels: one_hot(np_label_batch),
-                        tf_keep_prob: keep_prob,
+                        tf_rate: rate,
                     },
                 )
                 if (i % 100) == 0:
@@ -120,7 +120,7 @@ def train(batch_size, lr, epochs, keep_prob, chkp_dir, output_pb):
                     np_label_batch = label_batch.numpy()
                     pred_label = sess.run(
                         tf_pred,
-                        feed_dict={tf_image_batch: np_img_batch, tf_keep_prob: 1.0},
+                        feed_dict={tf_image_batch: np_img_batch, tf_rate: 0.0},
                     )
                     acc = (pred_label == np_label_batch).sum() / np_label_batch.shape[0]
                     click.echo(
