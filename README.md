@@ -6,6 +6,7 @@
 2. `source .venv/bin/activate`
 3. `pip install mbed-cli && mbed deploy`
 4. `pip install utensor_cgen==0.3.3.dev2`
+3. `pip install -r requirements.txt`
 
 ## Compilation
 

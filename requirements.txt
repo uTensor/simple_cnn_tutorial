@@ -1,3 +1,4 @@
 torch==1.0.1.post2
 torchvision==0.2.1
-utensor-cgen==0.3.1
+-e git+git@github.com:uTensor/utensor_cgen.git@develop#egg=utensor-cgen
+mbed-cli
